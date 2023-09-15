@@ -2,7 +2,8 @@
 # coding=utf8
 
 import threading
-from bitcoinlib.keys import Key, generate_key
+from ecdsa import SigningKey, SECP256k1
+from ecdsa.util import randrange
 
 # Define the keyspace range
 keyspace_start = 0x8000000000000000
@@ -18,25 +19,35 @@ num_threads = 4  # Adjust as needed
 print_lock = threading.Lock()
 
 def generate_private_key():
-    # Generate a random Bitcoin private key within the specified keyspace range
     while True:
-        private_key = generate_key()
-        if keyspace_start <= int(private_key.wif()) <= keyspace_end:
+        private_key = SigningKey.generate(curve=SECP256k1)
+        private_key_int = int.from_bytes(private_key.to_string(), byteorder='big')
+
+        if keyspace_start <= private_key_int <= keyspace_end:
             return private_key
+
+def compute_public_key(private_key):
+    return private_key.get_verifying_key()
+
+def compute_bitcoin_address(public_key):
+    sha256_hash = public_key.to_string()
+    ripemd160_hash = hashlib.new('ripemd160', sha256_hash).digest()
+    address = b'\x00' + ripemd160_hash  # Assuming a Mainnet address (0x00 prefix)
+    checksum = hashlib.sha256(hashlib.sha256(address).digest()).digest()[:4]
+    address += checksum
+    return base58.b58encode(address)
 
 def find_collision(thread_num):
     while True:
-        # Generate a random Bitcoin private key within the keyspace range
         private_key = generate_private_key()
-
-        # Compute the Bitcoin address from the private key
-        address = private_key.address()
+        public_key = compute_public_key(private_key)
+        address = compute_bitcoin_address(public_key).decode()
 
         if address == target_address:
             with print_lock:
                 print(f"Collision Found by Thread {thread_num}")
                 print(f"Bitcoin Address: {address}")
-                print(f"Private Key (WIF): {private_key.wif()}")
+                print(f"Private Key (hex): {private_key.to_string().hex()}")
             return
 
 if __name__ == '__main__':
