@@ -6,6 +6,7 @@ from ecdsa import SigningKey, SECP256k1
 import hashlib
 import base58
 from tqdm import tqdm
+from concurrent.futures import ThreadPoolExecutor
 
 # Define the keyspace range
 keyspace_start = 0x8000000000000000
@@ -16,6 +17,9 @@ target_address = "13zb1hQbWVsc2S7ZTZnP2G4undNNpdh5so"
 
 # Define the number of threads for parallel processing
 num_threads = 4  # Adjust as needed
+
+# Number of address computations per batch
+batch_size = 100
 
 # Create a lock to ensure safe printing
 print_lock = threading.Lock()
@@ -39,9 +43,9 @@ def compute_bitcoin_address(public_key):
     address += checksum
     return base58.b58encode(address)
 
-def find_collision(thread_num, progress_bar):
+def search_batch(thread_num, start_range, end_range):
     collisions = []
-    while True:
+    for _ in range(batch_size):
         private_key, private_key_int = generate_private_key()
         public_key = compute_public_key(private_key)
         address = compute_bitcoin_address(public_key).decode()
@@ -52,25 +56,24 @@ def find_collision(thread_num, progress_bar):
                 print(f"Collision Found by Thread {thread_num}")
                 print(f"Bitcoin Address: {address}")
                 print(f"Private Key (hex): {private_key.to_string().hex()}")
-                print(f"Collided Keyspace Range: 0x{keyspace_start:x} - 0x{keyspace_end:x}")
-            return collisions
+                print(f"Collided Keyspace Range: 0x{start_range:x} - 0x{end_range:x}")
+    return collisions
 
 if __name__ == '__main__':
-    collisions = []
-
     # Create a progress bar
     with tqdm(total=num_threads, desc="Threads Completed", unit=" thread") as progress_bar:
         # Create and start multiple threads for collision search
         threads = []
-        for i in range(num_threads):
-            thread = threading.Thread(target=find_collision, args=(i, progress_bar))
-            threads.append(thread)
-            thread.start()
+        with ThreadPoolExecutor(max_workers=num_threads) as executor:
+            for i in range(num_threads):
+                start_range = i * (keyspace_end - keyspace_start) // num_threads + keyspace_start
+                end_range = (i + 1) * (keyspace_end - keyspace_start) // num_threads + keyspace_start
+                threads.append(executor.submit(search_batch, i, start_range, end_range))
 
         # Wait for all threads to finish and collect collisions
+        collisions = []
         for thread in threads:
-            if thread.is_alive():
-                collisions.extend(thread.join())
+            collisions.extend(thread.result())
 
     # Display the keyspace ranges of collisions
     print("\nCollisions occurred in the following keyspace ranges:")
