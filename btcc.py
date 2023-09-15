@@ -9,7 +9,7 @@ keyspace_start = 0x8000000000000000
 keyspace_end = 0xFFFFFFFFFFFFFFFF
 
 # Define the target Bitcoin address
-target_address = "your_target_address_here"
+target_address = "13zb1hQbWVsc2S7ZTZnP2G4undNNpdh5so"
 
 # Define the number of threads for parallel processing
 num_threads = 4  # Adjust as needed
