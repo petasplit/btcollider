@@ -26,7 +26,7 @@ def generate_private_key():
         private_key_int = int.from_bytes(private_key.to_string(), byteorder='big')
 
         if keyspace_start <= private_key_int <= keyspace_end:
-            return private_key
+            return private_key, private_key_int
 
 def compute_public_key(private_key):
     return private_key.get_verifying_key()
@@ -40,24 +40,26 @@ def compute_bitcoin_address(public_key):
     return base58.b58encode(address)
 
 def find_collision(thread_num, progress_bar):
+    collisions = []
     while True:
-        private_key = generate_private_key()
+        private_key, private_key_int = generate_private_key()
         public_key = compute_public_key(private_key)
         address = compute_bitcoin_address(public_key).decode()
 
         if address == target_address:
             with print_lock:
+                collisions.append(private_key_int)
                 print(f"Collision Found by Thread {thread_num}")
                 print(f"Bitcoin Address: {address}")
                 print(f"Private Key (hex): {private_key.to_string().hex()}")
-            return
-
-        # Update the progress bar
-        progress_bar.update(1)
+                print(f"Collided Keyspace Range: 0x{keyspace_start:x} - 0x{keyspace_end:x}")
+            return collisions
 
 if __name__ == '__main__':
+    collisions = []
+
     # Create a progress bar
-    with tqdm(total=num_threads, desc="Searching", unit=" thread") as progress_bar:
+    with tqdm(total=num_threads, desc="Threads Completed", unit=" thread") as progress_bar:
         # Create and start multiple threads for collision search
         threads = []
         for i in range(num_threads):
@@ -65,8 +67,14 @@ if __name__ == '__main__':
             threads.append(thread)
             thread.start()
 
-        # Wait for all threads to finish
+        # Wait for all threads to finish and collect collisions
         for thread in threads:
             if thread.is_alive():
-                thread.join()
+                collisions.extend(thread.join())
 
+    # Display the keyspace ranges of collisions
+    print("\nCollisions occurred in the following keyspace ranges:")
+    for collision in collisions:
+        start_range = max(keyspace_start, collision - 1)
+        end_range = min(keyspace_end, collision + 1)
+        print(f"Keyspace Range: 0x{start_range:x} - 0x{end_range:x}")
