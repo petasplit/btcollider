@@ -59,7 +59,7 @@ if __name__ == '__main__':
     # Create a progress bar
     with tqdm(total=num_threads, desc="Searching", unit=" thread") as progress_bar:
         # Create and start multiple threads for collision search
-        threads = [5]
+        threads = []
         for i in range(num_threads):
             thread = threading.Thread(target=find_collision, args=(i, progress_bar))
             threads.append(thread)
@@ -67,4 +67,6 @@ if __name__ == '__main__':
 
         # Wait for all threads to finish
         for thread in threads:
-            thread.join()
+            if thread.is_alive():
+                thread.join()
+
