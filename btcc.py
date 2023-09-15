@@ -3,7 +3,9 @@
 
 import threading
 from ecdsa import SigningKey, SECP256k1
-from ecdsa.util import randrange
+import hashlib
+import base58
+from tqdm import tqdm
 
 # Define the keyspace range
 keyspace_start = 0x8000000000000000
@@ -37,7 +39,7 @@ def compute_bitcoin_address(public_key):
     address += checksum
     return base58.b58encode(address)
 
-def find_collision(thread_num):
+def find_collision(thread_num, progress_bar):
     while True:
         private_key = generate_private_key()
         public_key = compute_public_key(private_key)
@@ -50,14 +52,19 @@ def find_collision(thread_num):
                 print(f"Private Key (hex): {private_key.to_string().hex()}")
             return
 
-if __name__ == '__main__':
-    # Create and start multiple threads for collision search
-    threads = []
-    for i in range(num_threads):
-        thread = threading.Thread(target=find_collision, args=(i,))
-        threads.append(thread)
-        thread.start()
+        # Update the progress bar
+        progress_bar.update(1)
 
-    # Wait for all threads to finish
-    for thread in threads:
-        thread.join()
+if __name__ == '__main__':
+    # Create a progress bar
+    with tqdm(total=num_threads, desc="Searching", unit=" thread") as progress_bar:
+        # Create and start multiple threads for collision search
+        threads = [5]
+        for i in range(num_threads):
+            thread = threading.Thread(target=find_collision, args=(i, progress_bar))
+            threads.append(thread)
+            thread.start()
+
+        # Wait for all threads to finish
+        for thread in threads:
+            thread.join()
